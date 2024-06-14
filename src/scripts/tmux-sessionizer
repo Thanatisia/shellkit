@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+# Initialize variables
+DEFAULT_TARGET_DIRS=(~/work/builds ~/projects ~/ ~/work ~/personal)
+TARGET_DIRS=("${@:-${DEFAULT_TARGET_DIRS[@]}}")
+
+# Check if the directories exist
+for dirs in "${TARGET_DIRS[@]}"; do
+    if [[ ! -d $dirs ]]; then
+        printf "%s\n" "Directory '$dirs' not found."
+        exit 1
+    fi
+done
+
+# Check if FZF is installed
+fzf --version > /dev/null 2>&1 # Redirect both the standard output and error streams to the null device
+if [[ $? -gt 0 ]]; then
+    echo -e "FZF is not installed.";
+    exit 1
+fi
+
+if [[ $# -eq 1 ]]; then
+    selected=$1
+else
+    selected=$(find ${TARGET_DIRS[@]} -mindepth 1 -maxdepth 1 -type d | fzf)
+fi
+
+if [[ -z $selected ]]; then
+    exit 0
+fi
+
+selected_name=$(basename "$selected" | tr . _)
+tmux_running=$(pgrep tmux)
+
+if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
+    tmux new-session -s $selected_name -c $selected
+    exit 0
+fi
+
+if ! tmux has-session -t=$selected_name 2> /dev/null; then
+    tmux new-session -ds $selected_name -c $selected
+fi
+
+if [[ -z $TMUX ]]; then
+    tmux attach -t $selected_name
+else
+    tmux switch-client -t $selected_name
+fi
+
